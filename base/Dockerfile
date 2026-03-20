@@ -3,12 +3,59 @@ FROM node:23-slim
 ARG HOST_UID=1000
 ARG HOST_GID=1000
 # Combine all tools here. Note: added specific tools you listed for runtime
-ARG LOCAL_TOOLS="git curl jq ripgrep vim nano make zip unzip ssh-client wget tree imagemagick ca-certificates gnupg procps"
+#ARG LOCAL_TOOLS="git curl jq ripgrep vim make zip unzip ssh-client wget tree imagemagick ca-certificates gnupg procps"
+ARG LOCAL_TOOLS="git curl jq ca-certificates gnupg unzip less groff-base"
 
 # 1. Install System Dependencies (as root)
 RUN apt-get update && \
   apt-get install -y --no-install-recommends ${LOCAL_TOOLS} && \
   rm -rf /var/lib/apt/lists/*
+
+# Install AWS CLI v2 using the official bundled installer
+RUN ARCH="$(dpkg --print-architecture)" && \
+  case "${ARCH}" in \
+    amd64) AWS_ARCH="x86_64" ;; \
+    arm64) AWS_ARCH="aarch64" ;; \
+    *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+  esac && \
+  curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o "/tmp/awscliv2.zip" && \
+  unzip -q /tmp/awscliv2.zip -d /tmp && \
+  /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli && \
+  rm -rf /tmp/aws /tmp/awscliv2.zip && \
+  aws --version && \
+  rm -rf /var/lib/apt/lists/*
+
+# Install kubectl from the official Kubernetes apt repository
+RUN install -m 0755 -d /etc/apt/keyrings && \
+  curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
+  chmod 0644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg && \
+  echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" > /etc/apt/sources.list.d/kubernetes.list && \
+  chmod 0644 /etc/apt/sources.list.d/kubernetes.list && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends kubectl && \
+  kubectl version --client && \
+  rm -rf /var/lib/apt/lists/*
+
+# Install Terraform from the official HashiCorp apt repository
+RUN install -m 0755 -d /etc/apt/keyrings && \
+  curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg && \
+  chmod 0644 /usr/share/keyrings/hashicorp-archive-keyring.gpg && \
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(. /etc/os-release && echo \"${VERSION_CODENAME}\") main" > /etc/apt/sources.list.d/hashicorp.list && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends terraform && \
+  terraform version && \
+  rm -rf /var/lib/apt/lists/*
+
+# Install OpenTofu from the official apt repository
+RUN install -m 0755 -d /etc/apt/keyrings && \
+  curl -fsSL https://get.opentofu.org/opentofu.gpg > /etc/apt/keyrings/opentofu.gpg && \
+  curl -fsSL https://packages.opentofu.org/opentofu/tofu/gpgkey | gpg --no-tty --batch --dearmor -o /etc/apt/keyrings/opentofu-repo.gpg && \
+  chmod 0644 /etc/apt/keyrings/opentofu.gpg /etc/apt/keyrings/opentofu-repo.gpg && \
+  echo "deb [signed-by=/etc/apt/keyrings/opentofu.gpg,/etc/apt/keyrings/opentofu-repo.gpg] https://packages.opentofu.org/opentofu/tofu/any/ any main" > /etc/apt/sources.list.d/opentofu.list && \
+  chmod 0644 /etc/apt/sources.list.d/opentofu.list && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends tofu && \
+  tofu version
 
 # Install Bun by copying from the official image
 # This installs bun globally to /usr/local/bin so it is available to everyone

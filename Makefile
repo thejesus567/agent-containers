@@ -8,7 +8,7 @@ HOST_UID := $(shell id -u)
 HOST_GID := $(shell id -g)
 
 # Tools to install in to the containers with apt-get
-LOCAL_TOOLS := "git curl jq ripgrep vim nano make zip unzip ssh-client wget tree imagemagick build-essential python3 python3-pip"
+LOCAL_TOOLS := "git curl jq ripgrep vim nano make zip unzip openssh-client wget tree imagemagick build-essential python3 python3-pip ca-certificates gnupg less groff-base"
 
 
 # Ensure we have a container engine
