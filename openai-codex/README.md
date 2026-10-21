@@ -1,56 +1,43 @@
-# OpenAI Codex
+# Codex
 
-## Build Instructions
+Desde la raíz del repositorio, con Docker o Podman en ejecución:
 
-Use the top level `Makefile` to build this. It injects things in to the build
-so the container works correctly for your user under `podman`.
+```bash
+make codex
+```
+
+El lanzador construye la imagen si no existe y abre Codex sin montar carpetas
+ni pasar claves del equipo. Selecciona **Sign in with Device Code** en la
+pantalla de autenticación. La sesión usa credenciales en memoria y se elimina
+al salir; no se reutiliza el inicio de sesión del Codex instalado en tu equipo.
+
+Para consultar código local sin permitir cambios:
+
+```bash
+./codex.sh --project /ruta/a/proyecto
+```
+
+Todos los archivos de esa carpeta quedan visibles, incluidos archivos ocultos
+y secretos ignorados por Git. Comparte únicamente una carpeta sin credenciales.
+
+Para construir sin abrir Codex:
 
 ```bash
 make openai-codex
 ```
 
-You can add more local tools to the container to be installed via `apt-get` by
-extending the `LOCAL_TOOLS` list in the top-level `Makefile`.
-
-## First time setup
-
-You only need to do this once. It helps persist your configuration between
-sessions.
-
-There are no sensitive secrets in the configuration files here so they should
-be fine to check in to your dotfiles repository.
-
-Configuration goes in the `config.yaml` file and custom instructions go in
-`instructions.md`. See [the
-docs](https://github.com/openai/codex?tab=readme-ov-file#configuration) for
-more details.
+Para comprobar la versión instalada:
 
 ```bash
-mkdir -p ~/.config/codex
-touch ~/.config/codex/config.yaml
-touch ~/.config/codex/instructions.md
+docker run --rm openai-codex --version
 ```
 
-The local codex configuration path is mounted in at `~/.codex` if you launch
-the container as below.
+La imagen usa `/home/node` y configuración actual de Codex; no utiliza
+`--approval-mode auto-edit`, `config.yaml` ni `/home/codeuser`.
+No montes tu configuración local de Codex: puede contener tokens de acceso.
 
-## Run Instructions
+Consulta el [README principal](../README.md) para requisitos, actualización,
+autenticación y límites del aislamiento.
 
-Note: If you're running rootless `podman` you'll need to add `--userns=keep-id`
-to these instructions.
-
-Note: See the rep [README](../README.md) for some nice shell functions for
-launching these containers.
-
-```bash
-docker run -it --rm \
-  -e OPENAI_API_KEY \
-  -v ${HOME}/.config/codex:/home/codeuser/.codex:rw \
-  -v $(pwd):/app:rw \
-  openai-codex
-```
-
-## References
-
-* [Github](https://github.com/openai/codex)
-* You may prefer [this method for running codex containered](https://github.com/openai/codex/blob/main/codex-cli/scripts/run_in_container.sh). I personally don't like a persistent codex instance like that.
+Referencias oficiales: [autenticación](https://developers.openai.com/codex/auth)
+y [CLI](https://developers.openai.com/codex/cli/reference).

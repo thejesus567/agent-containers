@@ -10,13 +10,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Run Commands
 - Claude Code: `docker run -it --rm -v ${HOME}/.config/claude/claude.json:/home/codeuser/.claude.json:rw -v $(pwd):/app:rw claude-code`
-- OpenAI Codex: `docker run -it --rm -e OPENAI_API_KEY -v ${HOME}/.config/codex:/home/codeuser/.codex:rw -v $(pwd):/app:rw openai-codex`
+- OpenAI Codex: `make codex` (isolated questions); `./codex.sh --project /path/to/project` (read-only project access)
 - Aider: `docker run -it --rm --user $(id -u):$(id -g) -e OPENAI_API_KEY -e ANTHROPIC_API_KEY -v $(pwd):/app:rw paulgauthier/aider`
 
 ## Code Style Guidelines
 - Docker-based project with separate containers for different AI assistants
 - Use explicit mounting of configuration files with appropriate permissions (700/600)
-- Keep API keys and credentials in mounted configuration files, never in code
+- Never mount host credentials or forward host API keys in the Codex launcher; use ephemeral Codex authentication
 - Document configuration persistence in README files per tool
 - Bash commands should use `$(pwd)` for current directory mounting
 - Prioritize security for configuration files containing API keys

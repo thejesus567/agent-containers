@@ -1,11 +1,9 @@
-.PHONY: all clean deep-clean base claude-code openai-codex
+.DEFAULT_GOAL := openai-codex
+
+.PHONY: all clean base claude-code openai-codex open-code codex
 
 # Determine container engine (podman or docker)
 CONTAINER_ENGINE := $(shell which podman 2>/dev/null || which docker 2>/dev/null)
-
-# UID/GID
-HOST_UID := $(shell id -u)
-HOST_GID := $(shell id -g)
 
 # Tools to install in to the containers with apt-get
 LOCAL_TOOLS := "git curl jq ripgrep vim nano make zip unzip openssh-client wget tree imagemagick build-essential python3 python3-pip ca-certificates gnupg less groff-base"
@@ -21,8 +19,6 @@ all: base claude-code openai-codex
 base:
 	@echo "Building base image"
 	$(CONTAINER_ENGINE) build \
-		--build-arg HOST_UID=$(HOST_UID) \
-		--build-arg HOST_GID=$(HOST_GID) \
 		--build-arg LOCAL_TOOLS=$(LOCAL_TOOLS) \
 		-t agent-base \
 		-f base/Dockerfile base
@@ -30,21 +26,18 @@ base:
 claude-code: base
 	@echo "Building claude-code"
 	$(CONTAINER_ENGINE) build \
-		--no-cache \
 		-t claude-code \
 		-f claude-code/Dockerfile claude-code
 
 openai-codex: base
 	@echo "Building openai-codex"
 	$(CONTAINER_ENGINE) build \
-		--no-cache \
 		-t openai-codex \
 		-f openai-codex/Dockerfile openai-codex
 
 open-code: base
 	@echo "Building open-code"
 	$(CONTAINER_ENGINE) build \
-		--no-cache \
 		-t open-code \
 		-f open-code/Dockerfile open-code
 
@@ -58,3 +51,7 @@ clean:
 			echo "Image $$image does not exist, skipping"; \
 		fi; \
 	done
+
+# Build on first use, then open an isolated question session.
+codex:
+	@./codex.sh

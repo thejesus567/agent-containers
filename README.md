@@ -1,121 +1,119 @@
 # agent-containers
 
-A bunch of container-ed AI agents with some simple instructions for running
-them against your local code in slightly safer ways.
+Ejecuta asistentes de programación en contenedores Docker o Podman.
+El flujo principal permite abrir Codex para hacer preguntas sin compartir
+archivos ni credenciales de tu equipo.
 
-Where possible, I've documented how to persist configuration from session to
-session as well. As a lot of these agents store your API credentials _in_ their
-configuration files, you should be really cautious about checking in config to
-some place like your dotfiles repo.
+## Empezar después de clonar
 
-## Prerequisites
+Necesitas Git, Make y Docker Desktop en ejecución (o Podman con su máquina activa).
+No necesitas instalar Node.js ni Codex en tu equipo.
 
-You'll need either [Docker](https://www.docker.com/) (preferably running
-rootless) or [podman](https://podman.io/) installed on your system to build and
-launch these containers.
-
-## Building
-
-To build all the containers:
+Desde la carpeta del repositorio:
 
 ```bash
-make all
+make codex
 ```
 
-To build any specific container use the directory name. For example:
+La primera vez construye las imágenes `agent-base` y `openai-codex`.
+Las siguientes veces reutiliza la imagen y abre una sesión nueva.
+
+En la pantalla de autenticación de Codex, selecciona **Sign in with Device Code**,
+abre el enlace en tu navegador e introduce el código. Si no aparece disponible,
+activa el inicio de sesión por código de dispositivo en la configuración de
+seguridad de ChatGPT o consulta al administrador de tu espacio de trabajo.
+Necesitas una cuenta con acceso a Codex.
+
+Después puedes preguntar, por ejemplo:
+
+> Explícame las diferencias entre una API REST y GraphQL, con ejemplos en Python.
+
+Sal con `/quit`. Al cerrar se elimina el contenedor. El inicio de sesión se
+mantiene únicamente en la memoria del proceso, así que debes autenticarte de
+nuevo en cada sesión.
+
+## Consultar un proyecto local
+
+Compartir archivos es opcional y siempre explícito:
 
 ```bash
-make claude-code
+./codex.sh --project /ruta/a/mi-proyecto
 ```
 
-### Architecture
+La carpeta se monta en `/app` en modo de **solo lectura**. Codex puede explicar
+el código, pero no modificar los archivos del equipo. No compartas carpetas
+con `.env`, claves privadas o secretos en su historial Git: cualquier archivo
+dentro de la carpeta compartida puede leerse. `.gitignore` no restringe el acceso.
+Las rutas con espacios funcionan; las rutas con comas no están admitidas.
 
-The project uses a multi-stage build approach with a common base image
-(`agent-base`) that contains shared dependencies and configuration.
-Tool-specific images extend this base with their unique requirements:
-
-```
-agent-base
-├── claude-code
-└── openai-codex
-```
-
-Each Dockerfile uses multi-stage builds to:
-- Separate build-time dependencies from runtime dependencies
-- Minimize final image sizes by ~20-40%
-- Improve security by reducing the attack surface
-- Speed up builds through better layer caching
-
-### Build Options
-
-The build system supports caching control options:
+También puedes consultar las opciones de la CLI:
 
 ```bash
-# Build all containers (base, claude-code, openai-codex)
-make all
-
-# Build just the base image
-make base
-
-# Build a specific tool (automatically builds base if needed)
-make claude-code
-
-# Build without cache
-make claude-code DISABLE_CACHE=1
-
-# Build using a specific image as cache source
-make claude-code CACHE_FROM=claude-code:latest
+./codex.sh -- --help
 ```
 
-### Cleaning
+## Credenciales y aislamiento
 
-To remove built images:
+El lanzador `codex.sh`:
+
+- No monta tu directorio personal, `~/.aws`, `~/.kube`, `~/.ssh` ni `~/.codex`.
+- No pasa las variables de entorno de tu equipo, incluyendo claves de API.
+- No comparte el socket de Docker ni el agente SSH.
+- Ejecuta Codex como usuario sin privilegios, con el sistema de archivos del
+  contenedor en solo lectura y la política de aprobación `on-request`.
+- Usa almacenamiento temporal en memoria para `/tmp` y `/home/node/.codex`.
+- No crea volúmenes de autenticación; usa `cli_auth_credentials_store="ephemeral"`.
+
+La imagen base no instala AWS CLI, kubectl, Terraform, OpenTofu ni el binario
+local `tod`. Incluye herramientas generales de desarrollo y Bun para los otros
+asistentes del repositorio.
+
+El aislamiento lo aplica Docker/Podman. El lanzador usa
+`--sandbox danger-full-access --ask-for-approval on-request` dentro del contenedor
+porque el sandbox interno de Codex (Bubblewrap) requiere namespaces que Docker
+bloquea. Esto permite ejecutar comandos dentro del contenedor; los montajes de
+solo lectura y las restricciones del motor siguen vigentes. Usa `codex.sh` para
+aplicar estas restricciones, en lugar de ejecutar la imagen manualmente.
+
+Codex necesita autenticarse para conectarse a OpenAI. Su propia sesión usa
+credenciales en memoria; este diseño no constituye una separación absoluta entre
+esas credenciales y los procesos del mismo contenedor. Los archivos del equipo
+solo se exponen cuando eliges compartir una carpeta. El contenedor tiene red
+para conectarse a OpenAI; no está configurado para bloquear acceso a tu red local.
+
+Documentación oficial: [autenticación](https://developers.openai.com/codex/auth)
+y [opciones de Codex CLI](https://developers.openai.com/codex/cli/reference).
+
+## Construir y actualizar
 
 ```bash
-# Remove images but preserve build cache
-make clean
+# Construir Codex sin abrir una sesión (también es el objetivo por defecto de make)
+make openai-codex
 
-# Remove images and prune build cache older than 24h
-make deep-clean
+# Elegir el motor explícitamente al construir
+make openai-codex CONTAINER_ENGINE=docker
 ```
 
-## Running
-
-See the README files in the sub-directories for instructions on initial setup,
-configuration persistence and executing the AI agents in their container
-environments.
-
-For launching the containers, I recommend a small set of shell functions. These
-will work in `zsh` or `bash` and automatically adjust for `podman` and
-`docker`.
+Codex está fijado a la versión `0.163.0`, verificada con este lanzador.
+La instalación se almacena en la caché de construcción. Para probar explícitamente
+la versión publicada más reciente después de construir la base:
 
 ```bash
-function __ai_container_launcher() {
-  if type podman >/dev/null; then
-    LAUNCHER="podman run --userns=keep-id"
-  else
-    LAUNCHER="docker run"
-  fi
-  echo $LAUNCHER
-}
-
-function claude() {
-  eval "$(__ai_container_launcher) --tty --interactive -v ${HOME}/.config/claude/claude.json:/home/codeuser/.claude.json:rw \
-    -v ${HOME}/.config/claude:/home/codeuser/.claude:rw \
-    -v $(pwd):/app:rw \
-    claude-code $@"
-}
-
-function codex() {
-  eval "$(__ai_container_launcher) --rm --tty --interactive -e OPENAI_API_KEY -v $(pwd):/app:rw openai-codex $@"
-}
+docker build --no-cache --build-arg CODEX_VERSION=latest -t openai-codex -f openai-codex/Dockerfile openai-codex
 ```
 
-Put those some place in your `.zshrc` or `.bashrc` file and you'll be able to
-launch the agent in a working directory with a call to `claude` or `codex`. You
-can test they work by getting a bash shell in them with `claude bash` or
-`claude codex`.
+Si usas Podman, sustituye `docker` por `podman`. El Makefile y el lanzador
+prefieren Podman si ambos motores están instalados.
 
-## See Also
+## Otros asistentes
 
-* [My dotfiles](https://github.com/ianchesal/dotfiles)
+Se conservan los objetivos de construcción y las instrucciones específicas:
+
+- [Claude Code](claude-code/README.md): `make claude-code`
+- [OpenCode](open-code/README.md): `make open-code`
+- [Aider](aider/README.md)
+
+`make all` construye la base, Claude Code y Codex. `make clean` elimina las
+imágenes del proyecto; no elimina tus archivos locales. Los otros asistentes
+usan sus propios flujos de autenticación; las garantías del lanzador anterior
+corresponden a `codex.sh`.
