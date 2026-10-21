@@ -30,7 +30,50 @@ Después puedes preguntar, por ejemplo:
 
 Sal con `/quit`. Al cerrar se elimina el contenedor. El inicio de sesión se
 mantiene únicamente en la memoria del proceso, así que debes autenticarte de
-nuevo en cada sesión.
+nuevo en cada sesión. Las conversaciones sí se conservan para poder retomarlas.
+
+## Retomar conversaciones
+
+```bash
+make codex-resume
+```
+
+Inicia sesión por código de dispositivo y selecciona una conversación guardada.
+También puedes usar `/resume` desde una sesión abierta. `make codex` inicia una
+conversación nueva; `make codex-resume` abre el selector de conversaciones.
+
+El historial se guarda en el volumen `agent-containers-codex-history` de Docker
+(o Podman). Incluye conversaciones, su índice y la base de datos para retomarlas.
+No se comparte el directorio personal ni la configuración de Codex de tu equipo.
+Los archivos de autenticación y la configuración de cada ejecución permanecen
+en un directorio temporal separado; las credenciales de OpenAI siguen siendo
+en memoria y debes iniciar sesión en cada contenedor nuevo.
+
+Para retomar conversaciones sobre un proyecto, comparte de nuevo esa carpeta:
+
+```bash
+./codex.sh --resume --project /ruta/a/mi-proyecto
+```
+
+## Antes de dejar la computadora
+
+1. Sal de todas las sesiones con `/quit`. Si cerraste una terminal, comprueba
+   con `docker ps` que no quede un contenedor de Codex activo y detenlo si lo hay.
+2. Si también quieres eliminar tus conversaciones locales, ejecuta:
+
+   ```bash
+   make codex-delete-history
+   ```
+
+Este comando elimina permanentemente el volumen de historial. El motor rechaza
+el borrado si todavía lo usa un contenedor. `make clean` solo elimina imágenes;
+no elimina este historial. Las conversaciones pueden contener información
+sensible: no pegues claves ni tokens en ellas.
+
+Para evitar dejar una sesión de navegador en esta computadora, completa el
+acceso por código de dispositivo desde tu teléfono u otro equipo. Esta
+configuración evita archivos persistentes de autenticación de Codex, pero no
+promete borrado forense de memoria, swap o copias de seguridad del sistema.
 
 ## Consultar un proyecto local
 
@@ -62,6 +105,8 @@ El lanzador `codex.sh`:
 - Ejecuta Codex como usuario sin privilegios, con el sistema de archivos del
   contenedor en solo lectura y la política de aprobación `on-request`.
 - Usa almacenamiento temporal en memoria para `/tmp` y `/home/node/.codex`.
+- Guarda solo los archivos de conversaciones y su base de datos en un volumen
+  separado, fuera de `/home/node/.codex`.
 - No crea volúmenes de autenticación; usa `cli_auth_credentials_store="ephemeral"`.
 
 La imagen base no instala AWS CLI, kubectl, Terraform, OpenTofu ni el binario
@@ -117,3 +162,16 @@ Se conservan los objetivos de construcción y las instrucciones específicas:
 imágenes del proyecto; no elimina tus archivos locales. Los otros asistentes
 usan sus propios flujos de autenticación; las garantías del lanzador anterior
 corresponden a `codex.sh`.
+
+## Validación
+
+```bash
+python3 -m unittest discover -s tests -p test_codex_launcher.py
+python3 tests/test_codex_history.py
+```
+
+La segunda prueba requiere Docker en ejecución y la imagen construida. Usa un
+servidor simulado sin red para crear y retomar una conversación en contenedores
+distintos, verificar que los archivos temporales de autenticación no se conservan
+y eliminar únicamente sus propios contenedores y volumen de prueba. No necesita
+credenciales de OpenAI.

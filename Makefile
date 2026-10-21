@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := openai-codex
 
-.PHONY: all clean base claude-code openai-codex open-code codex
+.PHONY: all clean base claude-code openai-codex open-code codex codex-resume codex-delete-history
 
 # Determine container engine (podman or docker)
 CONTAINER_ENGINE := $(shell which podman 2>/dev/null || which docker 2>/dev/null)
@@ -55,3 +55,11 @@ clean:
 # Build on first use, then open an isolated question session.
 codex:
 	@./codex.sh
+
+# Resume saved conversations without persisting OpenAI login credentials.
+codex-resume:
+	@./codex.sh --resume
+
+# Permanently remove the conversation volume; active containers must exit first.
+codex-delete-history:
+	@./codex.sh --delete-history
