@@ -75,7 +75,7 @@ acceso por código de dispositivo desde tu teléfono u otro equipo. Esta
 configuración evita archivos persistentes de autenticación de Codex, pero no
 promete borrado forense de memoria, swap o copias de seguridad del sistema.
 
-## Consultar un proyecto local
+## Trabajar en un proyecto local
 
 Compartir archivos es opcional y siempre explícito:
 
@@ -83,8 +83,10 @@ Compartir archivos es opcional y siempre explícito:
 ./codex.sh --project /ruta/a/mi-proyecto
 ```
 
-La carpeta se monta en `/app` en modo de **solo lectura**. Codex puede explicar
-el código, pero no modificar los archivos del equipo. No compartas carpetas
+La carpeta se monta en `/app` con permisos de **lectura y escritura**. Codex puede
+editar código, crear archivos y ejecutar pruebas. Sus cambios se guardan directamente
+en tu proyecto, incluso después de cerrar el contenedor. Puedes revisar los cambios
+con `git diff` desde tu terminal. No compartas carpetas
 con `.env`, claves privadas o secretos en su historial Git: cualquier archivo
 dentro de la carpeta compartida puede leerse. `.gitignore` no restringe el acceso.
 Las rutas con espacios funcionan; las rutas con comas no están admitidas.
@@ -103,8 +105,10 @@ El lanzador `codex.sh`:
 - No pasa las variables de entorno de tu equipo, incluyendo claves de API.
 - No comparte el socket de Docker ni el agente SSH.
 - Ejecuta Codex como usuario sin privilegios, con el sistema de archivos del
-  contenedor en solo lectura y la política de aprobación `on-request`.
+  contenedor en solo lectura, excepto el proyecto compartido y los montajes de
+  historial y almacenamiento temporal. Usa la política de aprobación `on-request`.
 - Usa almacenamiento temporal en memoria para `/tmp` y `/home/node/.codex`.
+- Configura las cachés de npm y las que usan `XDG_CACHE_HOME` dentro de `/tmp`.
 - Guarda solo los archivos de conversaciones y su base de datos en un volumen
   separado, fuera de `/home/node/.codex`.
 - No crea volúmenes de autenticación; usa `cli_auth_credentials_store="ephemeral"`.
@@ -113,11 +117,18 @@ La imagen base no instala AWS CLI, kubectl, Terraform, OpenTofu ni el binario
 local `tod`. Incluye herramientas generales de desarrollo y Bun para los otros
 asistentes del repositorio.
 
+Las herramientas instaladas en el equipo anfitrión no se comparten con el
+contenedor. La red sigue disponible para OpenAI y dependencias de desarrollo:
+la ausencia de AWS CLI o Terraform no es un bloqueo de sus servicios ni impide
+descargar herramientas dentro del proyecto. No se configura acceso a tus cuentas
+de infraestructura ni se comparten sus credenciales.
+
 El aislamiento lo aplica Docker/Podman. El lanzador usa
 `--sandbox danger-full-access --ask-for-approval on-request` dentro del contenedor
 porque el sandbox interno de Codex (Bubblewrap) requiere namespaces que Docker
-bloquea. Esto permite ejecutar comandos dentro del contenedor; los montajes de
-solo lectura y las restricciones del motor siguen vigentes. Usa `codex.sh` para
+bloquea. Esto permite ejecutar comandos dentro del contenedor; el sistema base
+permanece en solo lectura y únicamente la carpeta del proyecto compartida tiene
+permisos de escritura en el equipo anfitrión. Usa `codex.sh` para
 aplicar estas restricciones, en lugar de ejecutar la imagen manualmente.
 
 Codex necesita autenticarse para conectarse a OpenAI. Su propia sesión usa
@@ -173,5 +184,7 @@ python3 tests/test_codex_history.py
 La segunda prueba requiere Docker en ejecución y la imagen construida. Usa un
 servidor simulado sin red para crear y retomar una conversación en contenedores
 distintos, verificar que los archivos temporales de autenticación no se conservan
-y eliminar únicamente sus propios contenedores y volumen de prueba. No necesita
+y comprobar que se puede editar y ejecutar código en un proyecto temporal sin
+herramientas de infraestructura instaladas. Elimina únicamente sus propios
+contenedores, carpeta y volumen de prueba. No necesita
 credenciales de OpenAI.

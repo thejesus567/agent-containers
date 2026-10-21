@@ -31,7 +31,7 @@ make codex-delete-history
 
 No pegues credenciales en las conversaciones: su contenido sí es persistente.
 
-Para consultar código local sin permitir cambios:
+Para trabajar en un proyecto local y permitir cambios en su código:
 
 ```bash
 ./codex.sh --project /ruta/a/proyecto
@@ -39,6 +39,12 @@ Para consultar código local sin permitir cambios:
 
 Todos los archivos de esa carpeta quedan visibles, incluidos archivos ocultos
 y secretos ignorados por Git. Comparte únicamente una carpeta sin credenciales.
+Los cambios se escriben directamente en tu proyecto y permanecen al cerrar
+el contenedor. Revisa el resultado con `git diff` desde tu terminal.
+
+El contenedor no incluye AWS CLI, Terraform, OpenTofu ni kubectl, ni comparte
+las herramientas o credenciales del equipo anfitrión. Mantiene acceso a la red
+para OpenAI y dependencias; esto no bloquea la descarga de otras herramientas.
 
 Para construir sin abrir Codex:
 

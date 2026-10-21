@@ -12,7 +12,7 @@ usage() {
 Uso: ./codex.sh [--resume] [--project CARPETA] [-- OPCIONES_CODEX]
 
 Sin argumentos: abre Codex sin compartir archivos del equipo.
---project CARPETA: comparte exclusivamente esa carpeta en modo de solo lectura.
+--project CARPETA: permite leer y modificar exclusivamente esa carpeta del equipo.
 --resume: muestra las conversaciones guardadas para retomar una.
 --delete-history: elimina permanentemente el historial guardado y sale.
 Las opciones después de -- se pasan a Codex (por ejemplo, -- --help).
@@ -71,6 +71,8 @@ run_args=(run --rm --interactive --init --cap-drop=ALL
   --tmpfs /tmp:rw,nosuid,nodev,mode=1777
   --tmpfs /home/node/.codex:rw,nosuid,nodev,uid=1000,gid=1000,mode=0700
   --mount "type=volume,source=$history_volume,target=/home/node/codex-history"
+  --env NPM_CONFIG_CACHE=/tmp/npm-cache
+  --env XDG_CACHE_HOME=/tmp/cache
   --workdir /app)
 if [[ "$engine" == podman ]]; then
   run_args+=(--userns=keep-id:uid=1000,gid=1000)
@@ -84,10 +86,11 @@ if [[ -n "$project_dir" ]]; then
     echo 'La ruta del proyecto no puede contener comas.' >&2
     exit 2
   fi
-  run_args+=(--mount "type=bind,source=$project_dir,target=/app,readonly")
+  run_args+=(--mount "type=bind,source=$project_dir,target=/app")
 fi
 
-# Docker enforces the read-only filesystem; nested Bubblewrap is blocked by Docker.
+# Docker keeps the image read-only while the explicitly shared project is writable.
+# Nested Bubblewrap is blocked by Docker.
 # Only conversation data is persisted; CODEX_HOME and credentials remain temporary.
 # No host environment, credential directories, sockets or auth volumes are forwarded.
 codex_args=(--sandbox danger-full-access --ask-for-approval on-request

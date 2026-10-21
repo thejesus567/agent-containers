@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Run Commands
 - Claude Code: `docker run -it --rm -v ${HOME}/.config/claude/claude.json:/home/codeuser/.claude.json:rw -v $(pwd):/app:rw claude-code`
-- OpenAI Codex: `make codex` (new conversation); `make codex-resume` (saved conversations); `./codex.sh --project /path/to/project` (read-only project access)
+- OpenAI Codex: `make codex` (new conversation); `make codex-resume` (saved conversations); `./codex.sh --project /path/to/project` (read and write project access)
 - Aider: `docker run -it --rm --user $(id -u):$(id -g) -e OPENAI_API_KEY -e ANTHROPIC_API_KEY -v $(pwd):/app:rw paulgauthier/aider`
 
 ## Code Style Guidelines

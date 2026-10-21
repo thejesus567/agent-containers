@@ -1,6 +1,8 @@
-"""Offline Docker integration test: resume conversations without persisting auth."""
+"""Offline integration: edit project code and resume chats without persisting auth."""
 
+import pathlib
 import subprocess
+import tempfile
 import textwrap
 import unittest
 import uuid
@@ -45,6 +47,10 @@ class HistoryPersistenceTest(unittest.TestCase):
         suffix = uuid.uuid4().hex
         volume = "codex-history-test-" + suffix
         container_names = []
+        project_temp = tempfile.TemporaryDirectory(prefix="codex-project-test-")
+        self.addCleanup(project_temp.cleanup)
+        project = pathlib.Path(project_temp.name).resolve()
+        project.chmod(0o777)
 
         def run_container(script):
             name = "codex-history-test-" + uuid.uuid4().hex
@@ -56,6 +62,9 @@ class HistoryPersistenceTest(unittest.TestCase):
                  "--tmpfs", "/tmp:rw,nosuid,nodev,mode=1777",
                  "--tmpfs", "/home/node/.codex:rw,nosuid,nodev,uid=1000,gid=1000,mode=0700",
                  "--mount", f"type=volume,source={volume},target=/home/node/codex-history",
+                 "--mount", f"type=bind,source={project},target=/app",
+                 "--env", "NPM_CONFIG_CACHE=/tmp/npm-cache",
+                 "--env", "XDG_CACHE_HOME=/tmp/cache",
                  "--entrypoint", "/bin/bash", "openai-codex", "-s"],
                 input="set -euo pipefail\n" + script,
                 text=True, capture_output=True, timeout=90,
@@ -81,6 +90,19 @@ class HistoryPersistenceTest(unittest.TestCase):
 
         try:
             first = run_container(conversation() + textwrap.dedent('''
+                for tool in aws terraform tofu kubectl docker podman; do
+                    if command -v "$tool" >/dev/null 2>&1; then
+                        echo "Unexpected infrastructure tool: $tool"
+                        exit 1
+                    fi
+                done
+                test ! -e /home/node/.aws
+                test ! -e /home/node/.kube
+                test -z "${AWS_ACCESS_KEY_ID:-}"
+                if touch /home/node/should-not-exist 2>/dev/null; then exit 1; fi
+                npm init --yes > /tmp/npm-init.log
+                printf 'module.exports = (a, b) => a + b;\n' > /app/calculator.cjs
+                test "$(node -p 'require("./calculator.cjs")(2, 3)')" = 5
                 test ! -e "$CODEX_HOME/auth.json"
                 printf 'temporary-test-marker' > "$CODEX_HOME/auth.json"
                 printf 'temporary-test-marker' > "$CODEX_HOME/config-extra"
@@ -88,7 +110,12 @@ class HistoryPersistenceTest(unittest.TestCase):
                 test -n "$(find /home/node/codex-history/sessions -name '*.jsonl' -print -quit)"
             '''))
             self.assertIn("offline-test-answer", first.stdout)
+            self.assertIn("a + b;", (project / "calculator.cjs").read_text())
+            self.assertTrue((project / "package.json").is_file())
             second = run_container(conversation(resume=True) + textwrap.dedent('''
+                test "$(node -p 'require("./calculator.cjs")(2, 3)')" = 5
+                printf 'module.exports = (a, b) => a + b + 1;\n' > /app/calculator.cjs
+                test "$(node -p 'require("./calculator.cjs")(2, 3)')" = 6
                 test ! -e "$CODEX_HOME/auth.json"
                 test ! -e "$CODEX_HOME/config-extra"
                 python3 - <<'CHECK'
@@ -105,6 +132,7 @@ assert all('temporary-test-marker' not in p.read_text(errors='ignore') for p in 
 CHECK
             '''))
             self.assertIn("offline-test-answer", second.stdout)
+            self.assertIn("a + b + 1;", (project / "calculator.cjs").read_text())
         finally:
             # Remove only containers and the volume created by this test.
             for name in container_names:

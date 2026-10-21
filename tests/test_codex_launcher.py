@@ -45,7 +45,9 @@ elif sys.argv[1] == "run" or sys.argv[1:3] == ["volume", "rm"]:
         self.assertEqual(args.count("--tmpfs"), 2)
         self.assertIn('cli_auth_credentials_store="ephemeral"', args)
         self.assertNotIn("resume", args)
-        for forbidden in ["-v", "-e", "--env", "--env-file", "--privileged", "do-not-forward"]:
+        environment = [args[i + 1] for i, arg in enumerate(args) if arg == "--env"]
+        self.assertEqual(environment, ["NPM_CONFIG_CACHE=/tmp/npm-cache", "XDG_CACHE_HOME=/tmp/cache"])
+        for forbidden in ["-v", "-e", "--env-file", "--privileged", "do-not-forward"]:
             self.assertNotIn(forbidden, args)
 
     def test_resume_project_with_spaces(self):
@@ -53,7 +55,12 @@ elif sys.argv[1] == "run" or sys.argv[1:3] == ["volume", "rm"]:
         project.mkdir()
         args = self.run_launcher("--resume", "--project", str(project))
         self.assertEqual(args[-2:], ["resume", "--all"])
-        self.assertIn(f"type=bind,source={project.resolve()},target=/app,readonly", args)
+        mounts = [args[i + 1] for i, arg in enumerate(args) if arg == "--mount"]
+        self.assertEqual(mounts, [
+            "type=volume,source=agent-containers-codex-history,target=/home/node/codex-history",
+            f"type=bind,source={project.resolve()},target=/app",
+        ])
+        self.assertIn("--read-only", args)
 
     def test_old_image_is_rebuilt(self):
         self.env["MOCK_IMAGE_LAYOUT"] = "0"
