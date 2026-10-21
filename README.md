@@ -87,10 +87,10 @@ y [opciones de Codex CLI](https://developers.openai.com/codex/cli/reference).
 ## Construir y actualizar
 
 ```bash
-# Construir Codex sin abrir una sesión (también es el objetivo por defecto de make)
+# Build Codex without starting a session (also the default make target)
 make openai-codex
 
-# Elegir el motor explícitamente al construir
+# Explicitly select the container engine when building
 make openai-codex CONTAINER_ENGINE=docker
 ```
 
